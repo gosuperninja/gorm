@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"github.com/google/uuid"
 )
 
 // Scope contain current operation's information when you perform any operation on the database
@@ -564,6 +565,9 @@ func (scope *Scope) buildCondition(clause map[string]interface{}, include bool) 
 				str = fmt.Sprintf("(%v)", value)
 			}
 		}
+	case uuid.UUID:
+		uuid_bytes, _ := value.MarshalBinary()
+		return fmt.Sprintf("(%v.%v %s %v)", quotedTableName, quotedPrimaryKey, equalSQL, scope.AddToVars(uuid_bytes))
 	case map[string]interface{}:
 		var sqls []string
 		for key, value := range value {
@@ -720,7 +724,14 @@ func (scope *Scope) whereSQL() (sql string) {
 
 	if !scope.PrimaryKeyZero() {
 		for _, field := range scope.PrimaryFields() {
-			sql := fmt.Sprintf("%v.%v = %v", quotedTableName, scope.Quote(field.DBName), scope.AddToVars(field.Field.Interface()))
+			var sql string
+			switch value := field.Field.Interface().(type) {
+			case uuid.UUID:
+				uuid_bytes, _ := value.MarshalBinary()
+				sql = fmt.Sprintf("%v.%v = %v", quotedTableName, scope.Quote(field.DBName), scope.AddToVars(uuid_bytes))
+			default:
+				sql = fmt.Sprintf("%v.%v = %v", quotedTableName, scope.Quote(field.DBName), scope.AddToVars(field.Field.Interface()))
+			}
 			primaryConditions = append(primaryConditions, sql)
 		}
 	}
